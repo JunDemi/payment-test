@@ -15,7 +15,7 @@ const paymentComplete = async ({ searchParams }: { searchParams: Promise<{ order
 
   return (
     <div>
-      <h1>결제가 완료되었습니다.</h1>
+      <h1>토스 결제가 완료되었습니다.</h1>
       <ul>
         <li>결제 ID: {tossPayments.paymentKey}</li>
         <li>결제 상품: {tossPayments.orderName}</li>
