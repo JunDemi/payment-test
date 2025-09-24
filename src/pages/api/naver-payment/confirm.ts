@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 type NaverPaymentConfirmResponse = {
   code: string;
@@ -21,17 +21,19 @@ type NaverErrorResponse = {
   message?: string;
 };
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  const { searchParams } = new URL(req.url);
-  const paymentId = searchParams.get('paymentId');
-  const resultCode = searchParams.get('resultCode');
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { paymentId, resultCode } = req.query;
 
   if (!paymentId) {
-    return NextResponse.json({ error: 'Missing paymentId parameter' }, { status: 400 });
+    return res.status(400).json({ error: 'Missing paymentId parameter' });
   }
 
   if (resultCode !== 'Success') {
-    return NextResponse.json({ error: 'Payment was not successful' }, { status: 400 });
+    return res.status(400).json({ error: 'Payment was not successful' });
   }
 
   const clientId = process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
@@ -40,9 +42,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const partnerId = process.env.NEXT_PUBLIC_NAVER_PARTNER_ID;
 
   if (!clientId || !clientSecret || !chainId || !partnerId) {
-    return NextResponse.json({ 
+    return res.status(500).json({ 
       error: 'Missing Naver Pay configuration in environment variables' 
-    }, { status: 500 });
+    });
   }
 
   const apiUrl = `https://dev-pay.paygate.naver.com/naverpay-partner/naverpay/payments/v2.2/apply/payment`;
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         'X-NaverPay-Idempotency-Key': `${paymentId}-${Date.now()}`, // 멱등성 키
       },
       body: new URLSearchParams({
-        paymentId: paymentId,
+        paymentId: paymentId as string,
       }),
     });
 
@@ -66,22 +68,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (!response.ok) {
       console.error('Naver Pay confirm error response:', data);
-      return NextResponse.json(
-        { error: (data as NaverErrorResponse).message || 'Payment confirmation failed' },
-        { status: response.status },
-      );
+      return res.status(response.status).json({
+        error: (data as NaverErrorResponse).message || 'Payment confirmation failed'
+      });
     }
 
     // TODO: DB 처리 - 결제 정보 저장
     console.log('Naver Pay confirmation successful:', data);
 
     // 성공 시 완료 페이지로 리다이렉트
-    const baseUrl = new URL(req.url).origin;
-    return NextResponse.redirect(`${baseUrl}/payment-complete/naver?paymentId=${paymentId}&status=confirmed`);
+
+    res.redirect(`http://localhost:3001/payment-complete/naver?paymentId=${paymentId}&status=confirmed`);
   } catch (error) {
     console.error('Naver Pay confirm error:', error);
-    return NextResponse.json({ 
+    res.status(500).json({ 
       error: 'Unexpected error during payment confirmation' 
-    }, { status: 500 });
+    });
   }
 }
